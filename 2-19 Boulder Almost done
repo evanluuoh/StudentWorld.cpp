@@ -1,0 +1,161 @@
+#include "StudentWorld.h"
+#include <string>
+#include <iostream>
+#include <algorithm>
+#include <cstdlib>
+using namespace std;
+
+GameWorld* createStudentWorld(string assetDir)
+{
+	return new StudentWorld(assetDir);
+}
+
+StudentWorld::StudentWorld(std::string assetDir)
+	: GameWorld(assetDir)
+{
+	for (int i = 0; i < 64; i++)
+	{
+		for (int j = 0; j < 64; j++)
+		{
+			m_dirt[i][j] = nullptr;
+		}
+	}
+}
+
+StudentWorld::~StudentWorld()
+{
+	delete m_player;
+	for (int i = 0; i < 64; i++)
+	{
+		for (int j = 0; j < 64; j++)
+		{
+			delete m_dirt[i][j];
+		}
+	}
+}
+
+int StudentWorld::init()
+{
+	for (int i = 0; i < 64; i++)
+	{
+		if (i >= 30 && i <= 33)
+			for (int j = 0; j < 4; j++)
+			{
+				m_dirt[i][j] = new Dirt(IID_DIRT, i, j, GraphObject::right, 0.25, 3, this);
+			}
+		else
+		{
+			for (int j = 0; j < 60; j++)
+			{
+				m_dirt[i][j] = new Dirt(IID_DIRT, i, j, GraphObject::right, 0.25, 3, this);
+			}
+		}
+	}
+	m_player = new Frackman(IID_PLAYER, 30, 60, GraphObject::right, 1, 0, this, 10);
+
+	int boulders = getLevel() / 2 + 2;
+	if (boulders > 6)
+		boulders = 6;
+//	for (int i = 0; i < boulders; i++)
+//	{
+//		Boulder* b = new Boulder(IID_BOULDER, rand()&59, rand()%36 + 20, GraphObject::down, 1.0, 1, this);
+	Boulder* b = new Boulder(IID_BOULDER, 20, 30, GraphObject::down, 1.0, 1, this);
+	Boulder* c = new Boulder(IID_BOULDER, 20, 40, GraphObject::down, 1.0, 1, this);
+		m_actors.push_back(b);
+		m_actors.push_back(c);
+//	}
+	return GWSTATUS_CONTINUE_GAME;
+}
+
+int StudentWorld::move()
+{
+	m_player->doSomething();
+	for (int i = 0; i < m_actors.size(); i++)
+	{
+		m_actors[i]->doSomething();
+		if (!m_actors[i]->isAlive())
+		{
+			delete m_actors[i];
+			m_actors[i] = nullptr;
+			vector<Actor*>::iterator a, b, it;
+			a = m_actors.begin();
+			b = m_actors.end();
+			it = find(a, b, m_actors[i]);
+			m_actors.erase(it);
+		}
+	}
+	if (!m_player->isAlive())
+		return GWSTATUS_PLAYER_DIED;
+	return GWSTATUS_CONTINUE_GAME;
+}
+
+
+void StudentWorld::cleanUp()
+{
+	delete m_player;
+	for (int i = 0; i < 60; i++)
+	{
+		for (int j = 0; j < 60; j++)
+		{
+			delete m_dirt[i][j];
+		}
+	}
+}
+
+bool StudentWorld::hitsDirt(Actor* a)
+{
+	for (int i = a->getX(); i < a->getX() + 4; i++)
+	{
+		for (int j = a->getY(); j < a->getY() + 4; j++)
+		{
+			if (isDirt(i, j))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool StudentWorld::isDirt(int x, int y)
+{
+	if (m_dirt[x][y] != nullptr)
+	{
+		return true;
+	}
+	return false;
+}
+
+void StudentWorld::removeDirt(int x, int y)
+{
+	delete m_dirt[x][y];
+	m_dirt[x][y] = nullptr;
+}
+
+
+void StudentWorld::collide(Actor* a, int r)
+{
+	if (hitsDirt(a))
+	{
+		a->makeDead();
+	}
+
+	for (int k = 0; k < m_actors.size(); k++)
+	{
+		if (a->withinRadius(m_player, r))
+		{
+			m_player->makeDead();
+		}
+		if (a->withinRadius(m_actors[k], r))
+		{
+			if (a != m_actors[k] && m_actors[k]->type() == "obstacle")
+			{
+				a->makeDead();
+			}
+			if (m_actors[k]->type() == "person")
+			{
+				m_actors[k]->loseHealth(100);
+			}
+		}
+	}
+}
