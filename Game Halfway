@@ -1,0 +1,423 @@
+#include "StudentWorld.h"
+#include "GameConstants.h"
+#include "Actor.h"
+#include <string>
+#include <iostream>
+#include <algorithm>
+#include <cstdlib>
+using namespace std;
+
+GameWorld* createStudentWorld(string assetDir)
+{
+	return new StudentWorld(assetDir);
+}
+
+StudentWorld::StudentWorld(std::string assetDir)
+	: GameWorld(assetDir)
+{
+	for (int i = 0; i < 64; i++) //initializes m_dirt by filling it with nullptr
+	{
+		for (int j = 0; j < 64; j++)
+		{
+			m_dirt[i][j] = nullptr;
+		}
+	}
+	m_water = 5; //sets initial goodie values
+	m_sonar = 1;
+	m_gold = 0;
+	m_oil = 0;
+}
+
+StudentWorld::~StudentWorld()
+{
+	delete m_player; //deletes all actors
+	for (int i = 0; i < 64; i++)
+	{
+		for (int j = 0; j < 64; j++)
+		{
+			delete m_dirt[i][j];
+		}
+	}
+}
+
+int StudentWorld::init()
+{
+	m_oil = 0;
+	for (int i = 0; i < 64; i++) //fills up grid with dirt
+	{
+		if (i >= 30 && i <= 33) //mineshaft
+			for (int j = 0; j < 4; j++)
+			{
+				m_dirt[i][j] = new Dirt(IID_DIRT, i, j, GraphObject::right, 0.25, 3, this);
+			}
+		else
+		{
+			for (int j = 0; j < 60; j++)
+			{
+				m_dirt[i][j] = new Dirt(IID_DIRT, i, j, GraphObject::right, 0.25, 3, this);
+			}
+		}
+	}
+	m_player = new Frackman(IID_PLAYER, 30, 60, GraphObject::right, 1, 0, this, 10); //initialize Frackman
+
+
+	int boulders = min(6, (static_cast<int>(getLevel()) / 2) + 2);
+	cout << boulders << endl;
+	Boulder* b;
+	for (int i = 0; i < boulders; i++)
+	{
+		b = new Boulder(IID_BOULDER, rand() % 60, rand() % 36 + 20, GraphObject::down, 1.0, 1, this); //construct boulders
+		if (positionValid(b))
+			m_actors.push_back(b);
+		else
+			i--;
+	}
+
+	oilInLevel = min(2 + static_cast<int>(getLevel()), 20);
+	Barrel* o;
+	for (int j = 0; j < oilInLevel; j++)
+	{
+		o = new Barrel(IID_BARREL, rand() % 60, rand() % 36 + 20, GraphObject::right, 1.0, 2, this);
+		if (positionValid(o))
+			m_actors.push_back(o);
+		else
+			j--;
+	}
+
+	int nuggets = max(2, 5 - static_cast<int>(getLevel()) / 2);
+	Nugget* n;
+	for (int k = 0; k < nuggets; k++)
+	{
+		n = new Nugget(IID_GOLD, rand() % 60, rand() % 36 + 20, GraphObject::right, 1.0, 2, this);
+		if (positionValid(n))
+			m_actors.push_back(n);
+		else
+			k--;
+	}
+
+	return GWSTATUS_CONTINUE_GAME;
+}
+
+int StudentWorld::move()
+{
+	m_player->doSomething(); //call doSomething for all actors
+	for (int i = 0; i < m_actors.size(); i++)
+	{
+		m_actors[i]->doSomething();
+		if (!m_actors[i]->isAlive()) //removes dead actors by deleting its value and erasing it from m_actors
+		{
+			delete m_actors[i];
+			m_actors[i] = nullptr;
+			vector<Actor*>::iterator a, b, it;
+			a = m_actors.begin();
+			b = m_actors.end();
+			it = find(a, b, m_actors[i]);
+			m_actors.erase(it);
+		}
+	}
+	if (!m_player->isAlive())
+		return GWSTATUS_PLAYER_DIED;
+
+	if (m_oil == oilInLevel)
+		return GWSTATUS_FINISHED_LEVEL;
+
+	return GWSTATUS_CONTINUE_GAME;
+}
+
+
+void StudentWorld::cleanUp()
+{
+	delete m_player;
+	for (int i = 0; i < 60; i++)
+	{
+		for (int j = 0; j < 60; j++)
+		{
+			delete m_dirt[i][j];
+		}
+	}
+	for (int i = 0; i < m_actors.size(); i++)
+	{
+		delete m_actors[i];
+		m_actors[i] = nullptr;
+	}
+	while (!m_actors.empty())
+		m_actors.pop_back();
+}
+
+bool StudentWorld::hitsDirt(Actor* a) //returns true if actor a is touching dirt
+{
+	for (int i = a->getX(); i < a->getX() + 4; i++)
+	{
+		for (int j = a->getY(); j < a->getY() + 4; j++)
+		{
+			if (isDirt(i, j))
+			{
+				return true;
+			}
+		}
+	}
+	return false;
+}
+
+bool StudentWorld::isDirt(int x, int y) //returns true if there is dirt at x, y
+{
+	if (m_dirt[x][y] != nullptr)
+	{
+		return true;
+	}
+	return false;
+}
+
+void StudentWorld::removeDirt(int x, int y) //removes the dirt at x, y
+{
+	delete m_dirt[x][y];
+	m_dirt[x][y] = nullptr;
+}
+
+bool StudentWorld::hitsRock(Actor* a, GraphObject::Direction dir) //returns true if there is a rock in front of actor a in the direction a is facing
+{
+	switch (dir)
+	{
+	case GraphObject::left:
+		for (int i = 0; i < m_actors.size(); i++)
+		{
+			if (m_actors[i]->type() == "rock")
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					for (int k = 0; k < 4; k++)
+					{
+						if (a->getX() == m_actors[i]->getX() + 4 && a->getY() + j == m_actors[i]->getY() + k) //checks if any of the squares in the rock touch any of the squares in a
+						{
+							return true;
+						}
+					}
+				}
+			}
+		}
+		return false;
+	case GraphObject::right:
+		for (int i = 0; i < m_actors.size(); i++)
+		{
+			if (m_actors[i]->type() == "rock")
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					for (int k = 0; k < 4; k++)
+					{
+						if (a->getX() + 4 == m_actors[i]->getX() && a->getY() + j == m_actors[i]->getY() + k)
+							return true;
+					}
+				}
+			}
+		}
+		return false;
+	case GraphObject::up:
+		for (int i = 0; i < m_actors.size(); i++)
+		{
+			if (m_actors[i]->type() == "rock")
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					for (int k = 0; k < 4; k++)
+					{
+						if (a->getX() + j == m_actors[i]->getX() + k && a->getY() + 4 == m_actors[i]->getY())
+							return true;
+					}
+				}
+			}
+		}
+		return false;
+	case GraphObject::down:
+		for (int i = 0; i < m_actors.size(); i++)
+		{
+			if (m_actors[i]->type() == "rock")
+			{
+				for (int j = 0; j < 4; j++)
+				{
+					for (int k = 0; k < 4; k++)
+					{
+						if (a->getX() + j == m_actors[i]->getX() + k && a->getY() == m_actors[i]->getY() + 4)
+							return true;
+					}
+				}
+			}
+		}
+		return false;
+	default:
+		return false;
+	}
+}
+
+void StudentWorld::collide(Actor* a, int r) //called whenever a boulder or water squirt hits an actor
+{
+	if (hitsDirt(a)) //both are removed if they hit dirt
+	{
+		a->makeDead();
+	} 
+
+	if (a->withinRadius(m_player, r))  //if a boulder hits the frackman, the frackman dies
+	{
+		if (a->type() == "rock")
+			m_player->makeDead();
+	}
+
+	for (int k = 0; k < m_actors.size(); k++)
+	{
+		if (a->withinRadius(m_actors[k], r))
+		{
+			if (a != m_actors[k] && m_actors[k]->type() == "rock") //both are removed if they hit a boulder
+			{
+				a->makeDead();
+			}
+			if (m_actors[k]->type() == "protestor") //rocks kill protestors, water squirts simply annoy them
+			{
+				if (a->type() == "rock")
+					m_actors[k]->loseHealth(100);
+				if (a->type() == "water")
+				{
+					m_actors[k]->getAnnoyed();
+					a->makeDead(); //remember, squirts die even when hitting people; boulders do not
+				}
+			}
+		}
+	}
+}
+
+void StudentWorld::shootWater(GraphObject::Direction dir, int x, int y) //creates a new water squirt object in the direction dir from the SHOOTER'S position
+{
+	if (m_water > 0)
+	{
+		if (dir == GraphObject::left)
+		{
+			Squirt* sl = new Squirt(IID_WATER_SPURT, x - 4, y, GraphObject::left, 1.0, 1, this);
+			m_actors.push_back(sl);
+		}
+		if (dir == GraphObject::right)
+		{
+			Squirt* sr = new Squirt(IID_WATER_SPURT, x + 4, y, GraphObject::right, 1.0, 1, this);
+			m_actors.push_back(sr);
+		}
+		if (dir == GraphObject::up)
+		{
+			Squirt* su = new Squirt(IID_WATER_SPURT, x, y + 4, GraphObject::up, 1.0, 1, this);
+			m_actors.push_back(su);
+		}
+		if (dir == GraphObject::down)
+		{
+			Squirt* sd = new Squirt(IID_WATER_SPURT, x, y - 4, GraphObject::down, 1.0, 1, this);
+			m_actors.push_back(sd);
+		}
+		m_water--;
+		playSound(SOUND_PLAYER_SQUIRT);
+	}
+}
+
+void StudentWorld::detectGoodie(Goodie* g)
+{
+	if (m_player->withinRadius(g, 4))
+	{
+		g->setVisible(true);
+	}
+}
+
+void StudentWorld::collectGoodie(Goodie* g)
+{
+	if (m_player->withinRadius(g, 3)) //if the player touches a goodie, makes the goodie dead and adds one to that goodie's count
+	{
+		g->makeDead();
+
+		if (g->type() == "oil")
+		{
+			m_oil++;
+			playSound(SOUND_FOUND_OIL);
+		}
+		if (g->type() == "pool")
+		{
+			playSound(SOUND_GOT_GOODIE);
+			m_water+= 5;
+		}
+		if (g->type() == "gold")
+		{
+			playSound(SOUND_GOT_GOODIE);
+			m_gold++;
+		}
+		if (g->type() == "sonar")
+		{
+			playSound(SOUND_GOT_GOODIE);
+			m_sonar++;
+		}
+	}
+}
+
+int StudentWorld::countWater()
+{
+	return m_water;
+}
+
+int StudentWorld::countSonar()
+{
+	return m_sonar;
+}
+
+int StudentWorld::countGold()
+{
+	return m_gold;
+}
+
+int StudentWorld::countOil()
+{
+	return m_oil;
+}
+
+void StudentWorld::dropGold(int x, int y)
+{
+	if (m_gold > 0)
+	{
+		Nugget* g = new Nugget(IID_GOLD, x, y, GraphObject::right, 1.0, 2, this);
+		m_actors.push_back(g);
+		g->setVisible(true);
+		g->setDiscovered();
+		m_gold--;
+	}
+}
+
+void StudentWorld::scan()
+{
+	if (m_sonar > 0)
+	{
+		for (int i = 0; i < m_actors.size(); i++)
+		{
+			if (m_player->withinRadius(m_actors[i], 12))
+			{
+				m_actors[i]->setVisible(true);
+			}
+		}
+		m_sonar--;
+		playSound(SOUND_SONAR);
+	}
+}
+
+bool StudentWorld::positionValid(Actor* a)
+{
+	for (int i = 0; i < m_actors.size(); i++)
+	{
+		if (a->withinRadius(m_actors[i], 6) || (a->getX() >= 27 && a->getX() <= 33))
+		{
+			if (a->type() == "rock")
+			{
+				for (int i = a->getX(); i < a->getX() + 4; i++)
+				{
+					for (int j = a->getY(); j < a->getY() + 4; j++)
+					{
+						if (i < 30 || i > 33)
+							m_dirt[i][j] = new Dirt(IID_DIRT, i, j, GraphObject::right, 0.25, 3, this);
+					}
+				}
+			}
+			delete a;
+			return false;
+		}
+	}
+	return true;
+}
