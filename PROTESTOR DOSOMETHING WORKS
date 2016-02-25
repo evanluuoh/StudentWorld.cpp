@@ -169,9 +169,9 @@ bool StudentWorld::hitsDirt(Actor* a, GraphObject::Direction dir) //returns true
 		for (int i = 0; i < 4; i++)
 		{
 			if (isDirt(a->getX() - 1, a->getY() + i)) //checks if any of the squares in the rock touch any of the squares in a
-				{
-					return true;
-				}
+			{
+				return true;
+			}
 		}
 		return false;
 	case GraphObject::right:
@@ -307,7 +307,7 @@ void StudentWorld::collide(Actor* a, int r) //called whenever a boulder or water
 	if (hitsDirt(a, a->getDirection())) //both are removed if they hit dirt
 	{
 		a->makeDead();
-	} 
+	}
 
 	if (a->withinRadius(m_player, r))  //if a boulder hits the frackman, the frackman dies
 	{
@@ -395,7 +395,7 @@ void StudentWorld::collectGoodie(Goodie* g)
 		if (g->type() == "pool")
 		{
 			playSound(SOUND_GOT_GOODIE);
-			m_water+= 5;
+			m_water += 5;
 			increaseScore(100);
 		}
 		if (g->type() == "gold")
@@ -415,7 +415,7 @@ void StudentWorld::collectGoodie(Goodie* g)
 	{
 		if (m_actors[i]->type() == "protester" && m_actors[i]->withinRadius(g, 3))
 		{
-			if (g->type == "gold")
+			if (g->type() == "gold")
 			{
 				m_actors[i]->getBribed();
 			}
@@ -587,27 +587,27 @@ string StudentWorld::formatText(int score, int level, int lives, int health, int
 
 GraphObject::Direction StudentWorld::hasLineOfSight(Protester* a)
 {
-		for (int i = a->getX(); i >= 0; i--)
-		{
-			if (m_player->getX() == i && m_player->getY() == a->getY() && pathValid(a, GraphObject::left))
-				return GraphObject::left;
-		}
-		for (int i = a->getX(); i <= 60; i++)
-		{
-			if (m_player->getX() == i && m_player->getY() == a->getY() && pathValid(a, GraphObject::right))
-				return GraphObject::right;
-		}
-		for (int i = a->getY(); i < 60; i++)
-		{
-			if (m_player->getY() == i && m_player->getX() == a->getX() && pathValid(a, GraphObject::up))
-				return GraphObject::up;
-		}
-		for (int i = a->getY(); i >= 0; i--)
-		{
-			if (m_player->getY() == i && m_player->getX() == a->getX() && pathValid(a, GraphObject::down))
-				return GraphObject::down;
-		}
-		return GraphObject::none;
+	for (int i = a->getX(); i >= 0; i--)
+	{
+		if (m_player->getX() == i && m_player->getY() == a->getY() && pathValid(a, GraphObject::left))
+			return GraphObject::left;
+	}
+	for (int i = a->getX(); i <= 60; i++)
+	{
+		if (m_player->getX() == i && m_player->getY() == a->getY() && pathValid(a, GraphObject::right))
+			return GraphObject::right;
+	}
+	for (int i = a->getY(); i < 60; i++)
+	{
+		if (m_player->getY() == i && m_player->getX() == a->getX() && pathValid(a, GraphObject::up))
+			return GraphObject::up;
+	}
+	for (int i = a->getY(); i >= 0; i--)
+	{
+		if (m_player->getY() == i && m_player->getX() == a->getX() && pathValid(a, GraphObject::down))
+			return GraphObject::down;
+	}
+	return GraphObject::none;
 }
 
 bool StudentWorld::canShout(Protester* p, GraphObject::Direction dir)
@@ -647,26 +647,26 @@ void StudentWorld::spawnPool()
 	pDeleted = false;
 	int size = m_actors.size();
 	Pool* p = new Pool(IID_WATER_POOL, rand() % 60, rand() % 60, GraphObject::right, 1.0, 2, this);
-		for (int i = p->getX(); i < p->getX() + 4; i++)
+	for (int i = p->getX(); i < p->getX() + 4; i++)
+	{
+		for (int j = p->getY(); j < p->getY() + 4; j++)
 		{
-			for (int j = p->getY(); j < p->getY() + 4; j++)
+			if (isDirt(i, j))
 			{
-				if (isDirt(i, j))
-				{
-					delete p;
-					pDeleted = true;
-				}
-				else
-					for (int k = 0; k < m_actors.size(); k++)
-					{
-						if (p->withinRadius(m_actors[k], 4))
-						{
-							delete p;
-							pDeleted = true;
-						}
-					}
+				delete p;
+				pDeleted = true;
 			}
+			else
+				for (int k = 0; k < m_actors.size(); k++)
+				{
+					if (p->withinRadius(m_actors[k], 4))
+					{
+						delete p;
+						pDeleted = true;
+					}
+				}
 		}
+	}
 	if (pDeleted == false)
 	{
 		m_actors.push_back(p);
